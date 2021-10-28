@@ -94,6 +94,7 @@ GRS_OBJS = \
     rust/rust-hir-type-check-path.o \
     rust/rust-compile-intrinsic.o \
     rust/rust-compile-pattern.o \
+    rust/rust-dump-hir.o \
     rust/rust-base62.o \
     rust/rust-compile-expr.o \
     rust/rust-compile-type.o \
@@ -253,7 +254,8 @@ RUST_INCLUDES = -I $(srcdir)/rust \
 	-I $(srcdir)/rust/resolve \
 	-I $(srcdir)/rust/util \
 	-I $(srcdir)/rust/typecheck \
-	-I $(srcdir)/rust/lint
+	-I $(srcdir)/rust/lint \
+	-I $(srcdir)/rust/dump
 
 # add files that require cross-folder includes - currently rust-lang.o, rust-lex.o
 CFLAGS-rust/rust-lang.o += $(RUST_INCLUDES)
@@ -316,6 +318,11 @@ rust/%.o: rust/typecheck/%.cc
 
 # build rust/lint files in rust folder
 rust/%.o: rust/lint/%.cc
+	$(COMPILE) $(RUST_CXXFLAGS) $(RUST_INCLUDES) $<
+	$(POSTCOMPILE)
+
+# build rust/dump files in rust folder
+rust/%.o: rust/dump/%.cc
 	$(COMPILE) $(RUST_CXXFLAGS) $(RUST_INCLUDES) $<
 	$(POSTCOMPILE)
 

@@ -20,6 +20,7 @@
 #include <fstream>
 #include <sstream>
 #include "rust-session-manager.h"
+#include "rust-dump-hir.h"
 #include "rust-diagnostics.h"
 #include "diagnostic.h"
 #include "input.h"
@@ -888,6 +889,9 @@ Session::dump_hir (HIR::Crate &hir) const
     }
 
   out << hir.as_string ();
+
+  Dump::DumpHIR::dump (hir, out);
+
   out.close ();
 }
 
