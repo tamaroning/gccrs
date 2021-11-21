@@ -179,6 +179,9 @@ protected:
 
   DumpHIR (std::ofstream &out, int ind);
 
+  void open_tag (std::string tag);
+  void close_tag(bool new_line = false);
+
   std::ofstream &m_dumpout;
   int m_sawclose;
   int m_indent;
