@@ -182,6 +182,8 @@ protected:
   void open_tag (std::string tag);
   void close_tag(bool new_line = false);
 
+  void dump_attr (AST::AttrVec &attrs);
+
   std::ofstream &m_dumpout;
   int m_sawclose;
   int m_indent;

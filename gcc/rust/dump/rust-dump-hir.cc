@@ -23,7 +23,14 @@ DumpHIR::open_tag (std::string tag)
 void
 DumpHIR::close_tag (bool new_line)
 {
-  m_dumpout << std::string(m_indent * 2, ' ') << ")";
+  if (m_sawclose)
+    {
+      m_dumpout << std::string(m_indent * 2, ' ');
+      m_sawclose = false;
+    }
+
+  m_dumpout << ")";
+
   if (new_line)
     {
       m_dumpout << std::endl;
@@ -32,23 +39,28 @@ DumpHIR::close_tag (bool new_line)
 }
 
 void
+DumpHIR::dump_attr (AST::AttrVec &attrs)
+{
+  for (const auto &attr : attrs)
+    m_dumpout << " ["
+              << attr.as_string()
+              << "] ";
+}
+
+void
 DumpHIR::go (HIR::Crate &crate)
 {
   open_tag ("crate");
 
-  for (const auto &attr : crate.inner_attrs)
-      m_dumpout << std::string(m_indent * 2, ' ')
-                << " \""
-                << attr.as_string()
-                << "\" ";
+  dump_attr (crate.inner_attrs);
 
   m_dumpout << std::endl;
   m_sawclose = true;
 
-  for (auto it = crate.items.begin (); it != crate.items.end (); it++)
+  for (const auto &it : crate.items)
     {
       m_indent += 2;
-      it->get()->accept_vis (*this);
+      it->accept_vis (*this);
       m_indent -= 2;
     }
 
@@ -513,8 +525,35 @@ DumpHIR::visit (HIR::Function &f)
 
   if (f.has_function_return_type())
     tag = tag + ":";
-
   open_tag (tag);
+
+  dump_attr (f.get_outer_attrs());
+
+  if (f.has_generics())
+    {
+      m_dumpout << '<';
+      for (const auto &g : f.get_generic_params())
+        {
+          m_dumpout << g->as_string ();
+        }
+      m_dumpout << '>';
+    }
+
+  if (f.has_function_params())
+    {
+      for (const auto &p : f.get_function_params ())
+        {
+          m_dumpout << "(";
+          m_dumpout << p.as_string();
+          m_dumpout << ")";
+
+          if (&p != &*(f.get_function_params ().cend () -1)){
+            m_dumpout << " ";
+          }
+
+        }
+    }
+
   close_tag(true);
 }
 
