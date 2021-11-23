@@ -561,8 +561,10 @@ public:
   Location get_locus () const { return locus; }
 
   Pattern *get_param_name () { return param_name.get (); }
+  const Pattern *get_param_name () const { return param_name.get (); }
 
   Type *get_type () { return type.get (); }
+  const Type *get_type () const { return type.get (); }
 
   const Analysis::NodeMapping &get_mappings () const { return mappings; }
 };

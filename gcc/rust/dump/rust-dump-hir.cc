@@ -15,6 +15,8 @@ DumpHIR::open_tag (std::string tag)
 {
   if (m_sawclose)
     m_dumpout << std::string(m_indent * 2, ' ');
+  else
+    m_dumpout << ' ';
 
   m_dumpout << "(" << tag;
   m_sawclose = false;
@@ -453,6 +455,7 @@ DumpHIR::visit (HIR::AwaitExpr &)
   open_tag ("AwaitExpr");
   close_tag();
 }
+
 void
 DumpHIR::visit (HIR::AsyncBlockExpr &)
 {
@@ -461,9 +464,10 @@ DumpHIR::visit (HIR::AsyncBlockExpr &)
 }
 
 void
-DumpHIR::visit (HIR::TypeParam &)
+DumpHIR::visit (HIR::TypeParam &typ)
 {
-  open_tag ("TypeParam");
+  open_tag ("typeparam");
+  m_dumpout << " \"" << typ.get_type_representation() << '"';
   close_tag();
 }
 
@@ -527,32 +531,38 @@ DumpHIR::visit (HIR::Function &f)
     tag = tag + ":";
   open_tag (tag);
 
-  dump_attr (f.get_outer_attrs());
-
   if (f.has_generics())
     {
-      m_dumpout << '<';
+      open_tag ("generics [");
+
+
       for (const auto &g : f.get_generic_params())
-        {
-          m_dumpout << g->as_string ();
-        }
-      m_dumpout << '>';
+        g->accept_vis (*this);
+
+      m_dumpout << ']';
+      close_tag();
     }
 
   if (f.has_function_params())
     {
+      open_tag ("params [");
+
       for (const auto &p : f.get_function_params ())
         {
-          m_dumpout << "(";
-          m_dumpout << p.as_string();
-          m_dumpout << ")";
+          m_dumpout << p.get_type ()->as_string ()
+                    << ':'
+                    << p.get_param_name ()->as_string ();
 
+          // very nice way to check if last elt
           if (&p != &*(f.get_function_params ().cend () -1)){
-            m_dumpout << " ";
+            m_dumpout << ' ';
           }
-
         }
+      m_dumpout << ']';
+      close_tag ();
     }
+
+  dump_attr (f.get_outer_attrs());
 
   close_tag(true);
 }
