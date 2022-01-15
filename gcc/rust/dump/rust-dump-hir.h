@@ -14,7 +14,7 @@
 namespace Rust {
 namespace Dump {
 
-class DumpHIR : public HIR::HIRVisitor
+class DumpHIR : public HIR::HIRFullVisitor
 {
 public:
   static void dump (HIR::Crate &crate, std::ofstream &out)
@@ -45,7 +45,7 @@ public:
   virtual void visit (HIR::LazyBooleanExpr &) override;
   virtual void visit (HIR::TypeCastExpr &) override;
   virtual void visit (HIR::AssignmentExpr &) override;
-
+  virtual void visit (HIR::CompoundAssignmentExpr &expr) override;
   virtual void visit (HIR::GroupedExpr &) override;
 
   virtual void visit (HIR::ArrayElemsValues &) override;

@@ -193,6 +193,12 @@ DumpHIR::visit (HIR::AssignmentExpr &)
 }
 
 void
+DumpHIR::visit (HIR::CompoundAssignmentExpr &expr)
+{
+  open_tag ("CompoundAssignmentExpr");
+  close_tag();
+}
+void
 DumpHIR::visit (HIR::GroupedExpr &)
 {
   open_tag ("GroupedExpr");
