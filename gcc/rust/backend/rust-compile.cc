@@ -333,6 +333,10 @@ HIRCompileBase::compute_address_for_trait_item (
   // check if there is an impl-item for this trait-item-ref first
   // else assert that the trait-item-ref has an implementation
 
+  rust_debug ("LOOKING UP [%s] from predicate [%s]",
+	      ref->get_identifier ().c_str (),
+	      predicate->as_string ().c_str ());
+
   TyTy::TypeBoundPredicateItem predicate_item
     = predicate->lookup_associated_item (ref->get_identifier ());
   rust_assert (!predicate_item.is_error ());

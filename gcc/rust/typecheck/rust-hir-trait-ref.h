@@ -179,19 +179,21 @@ private:
 class TraitReference
 {
 public:
-  TraitReference (const HIR::Trait *hir_trait_ref,
+  TraitReference (const TyTy::BaseType *self, const HIR::Trait *hir_trait_ref,
 		  std::vector<TraitItemReference> item_refs,
 		  std::vector<const TraitReference *> super_traits)
-    : hir_trait_ref (hir_trait_ref), item_refs (item_refs),
+    : self (self), hir_trait_ref (hir_trait_ref), item_refs (item_refs),
       super_traits (super_traits)
   {}
 
   TraitReference (TraitReference const &other)
-    : hir_trait_ref (other.hir_trait_ref), item_refs (other.item_refs)
+    : self (other.self), hir_trait_ref (other.hir_trait_ref),
+      item_refs (other.item_refs)
   {}
 
   TraitReference &operator= (TraitReference const &other)
   {
+    self = other.self;
     hir_trait_ref = other.hir_trait_ref;
     item_refs = other.item_refs;
 
@@ -201,7 +203,10 @@ public:
   TraitReference (TraitReference &&other) = default;
   TraitReference &operator= (TraitReference &&other) = default;
 
-  static TraitReference error () { return TraitReference (nullptr, {}, {}); }
+  static TraitReference error ()
+  {
+    return TraitReference (nullptr, nullptr, {}, {});
+  }
 
   bool is_error () const { return hir_trait_ref == nullptr; }
 
@@ -295,6 +300,34 @@ public:
 	    return true;
 	  }
       }
+
+    // FIXME
+    // is it part of a parent bound to the trait?
+    rust_debug ("LOOKUP PARENT 1");
+    self->debug ();
+
+    for (const auto &bound : self->get_specified_bounds ())
+      {
+	bool is_recursive = bound.get ()->is_equal (*this);
+	if (is_recursive)
+	  continue;
+
+	TyTy::TypeBoundPredicateItem item
+	  = bound.lookup_associated_item (ident);
+	if (item.is_error ())
+	  continue;
+
+	const Resolver::TraitItemReference *item_ref = item.get_raw_item ();
+	*ref = item_ref;
+
+	rust_debug ("LOOKUP PARENT 2 FOUND [%s] [%s]", ident.c_str (),
+		    item_ref->as_string ().c_str ());
+
+	return true;
+      }
+
+    rust_debug ("LOOKUP PARENT 3");
+
     return false;
   }
 
@@ -385,6 +418,7 @@ public:
   }
 
 private:
+  const TyTy::BaseType *self;
   const HIR::Trait *hir_trait_ref;
   std::vector<TraitItemReference> item_refs;
   std::vector<const TraitReference *> super_traits;
