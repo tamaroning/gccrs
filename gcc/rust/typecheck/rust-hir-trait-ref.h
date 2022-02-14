@@ -346,6 +346,19 @@ public:
     return &TraitItemReference::error_node ();
   }
 
+  const std::map<DefId, const TraitReference *> flat_map_trait_bounds () const
+  {
+    std::map<DefId, const TraitReference *> bounds;
+    for (const auto &bound : self->get_specified_bounds ())
+      {
+	for (const auto &b : bound.get ()->flat_map_trait_bounds ())
+	  {
+	    bounds.insert ({b.first, b.second});
+	  }
+      }
+    return bounds;
+  }
+
   size_t size () const { return item_refs.size (); }
 
   const std::vector<TraitItemReference> &get_trait_items () const
