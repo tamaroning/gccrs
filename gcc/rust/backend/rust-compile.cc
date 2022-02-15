@@ -258,10 +258,20 @@ HIRCompileBase::coerce_to_dyn_object (tree compiled_ref,
       const Resolver::TraitItemReference *item = bound.first;
       const TyTy::TypeBoundPredicate *predicate = bound.second;
 
-      auto address = compute_address_for_trait_item (item, predicate,
-						     probed_bounds_for_receiver,
-						     actual, root, locus);
-      vals.push_back (address);
+      TyTy::TypeBoundPredicateItem pitem
+	= predicate->lookup_associated_item (item->get_identifier ());
+      TyTy::BaseType *rtype = pitem.get_tyty_for_receiver (root);
+
+      rust_debug ("OOOOOOOOOOOOOOOOO 1");
+      rust_debug ("bound: [%s] [%s] [%s]", predicate->as_string ().c_str (),
+		  item->as_string ().c_str (), pitem.as_string ().c_str ());
+      rtype->debug ();
+      rust_debug ("OOOOOOOOOOOOOOOOO 2");
+
+      // auto address = compute_address_for_trait_item (item, predicate,
+      //   					     probed_bounds_for_receiver,
+      //   					     actual, root, locus);
+      // vals.push_back (address);
     }
 
   tree constructed_trait_object
@@ -313,7 +323,7 @@ HIRCompileBase::coerce_to_dyn_object (tree compiled_ref,
 }
 
 tree
-HIRCompileBase::compute_address_for_trait_item (
+HIRCompileBase::compute_address_for_trait_item2 (
   const Resolver::TraitItemReference *ref,
   const TyTy::TypeBoundPredicate *predicate,
   std::vector<std::pair<Resolver::TraitReference *, HIR::ImplBlock *>>
@@ -511,6 +521,46 @@ HIRCompileBase::verify_array_capacities (tree ltype, tree rtype,
     }
 
   return true;
+}
+
+tree
+HIRCompileBase::compute_address_for_trait_item (
+  const Resolver::TraitItemReference *ref,
+  const TyTy::TypeBoundPredicate *predicate,
+  std::vector<std::pair<Resolver::TraitReference *, HIR::ImplBlock *>>
+    &receiver_bounds,
+  const TyTy::BaseType *receiver, const TyTy::BaseType *root, Location locus)
+{
+  // There are two cases here one where its an item which has an implementation
+  // within a trait-impl-block. Then there is the case where there is a default
+  // implementation for this within the trait.
+  //
+  // The awkward part here is that this might be a generic trait and we need to
+  // figure out the correct monomorphized type for this so we can resolve the
+  // address of the function , this is stored as part of the
+  // type-bound-predicate
+  //
+  // Algo:
+  // check if there is an impl-item for this trait-item-ref first
+  // else assert that the trait-item-ref has an implementation
+
+  rust_debug ("LOOKING UP [%s] from predicate [%s]",
+	      ref->get_identifier ().c_str (),
+	      predicate->as_string ().c_str ());
+
+  TyTy::TypeBoundPredicateItem predicate_item
+    = predicate->lookup_associated_item (ref->get_identifier ());
+  rust_assert (!predicate_item.is_error ());
+
+  // this is the expected end type
+  TyTy::BaseType *trait_item_type = predicate_item.get_tyty_for_receiver (root);
+  rust_assert (trait_item_type->get_kind () == TyTy::TypeKind::FNDEF);
+  TyTy::FnType *trait_item_fntype
+    = static_cast<TyTy::FnType *> (trait_item_type);
+
+  rust_debug ("GOT PREDICATE: %s", predicate_item.as_string ().c_str ());
+
+  return error_mark_node;
 }
 
 } // namespace Compile

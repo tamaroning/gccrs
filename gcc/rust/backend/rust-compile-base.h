@@ -53,6 +53,13 @@ protected:
       &receiver_bounds,
     const TyTy::BaseType *receiver, const TyTy::BaseType *root, Location locus);
 
+  tree compute_address_for_trait_item2 (
+    const Resolver::TraitItemReference *ref,
+    const TyTy::TypeBoundPredicate *predicate,
+    std::vector<std::pair<Resolver::TraitReference *, HIR::ImplBlock *>>
+      &receiver_bounds,
+    const TyTy::BaseType *receiver, const TyTy::BaseType *root, Location locus);
+
   bool verify_array_capacities (tree ltype, tree rtype, Location ltype_locus,
 				Location rtype_locus);
 

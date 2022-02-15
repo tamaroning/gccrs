@@ -110,6 +110,14 @@ TypeKindFormat::to_string (TypeKind kind)
   gcc_unreachable ();
 }
 
+std::string
+TypeBoundPredicateItem::as_string () const
+{
+  return std::string ("TypeBoundPredicateItem { ")
+	 + "parent: " + get_parent ()->as_string ()
+	 + ", item: " + get_raw_item ()->as_string () + " }";
+}
+
 bool
 BaseType::satisfies_bound (const TypeBoundPredicate &predicate) const
 {

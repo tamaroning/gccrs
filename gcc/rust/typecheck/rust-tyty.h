@@ -102,6 +102,8 @@ public:
 
   const TypeBoundPredicate *get_parent () const { return parent; }
 
+  std::string as_string () const;
+
 private:
   const TypeBoundPredicate *parent;
   const Resolver::TraitItemReference *trait_item_ref;
