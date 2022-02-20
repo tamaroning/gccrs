@@ -33,6 +33,8 @@ public:
   tree eval_call_expression (tree);
   tree constexpr_fn_retval (tree);
   tree eval_store_expression (tree);
+  tree bind_parameters_in_call (tree t, tree fun, bool *non_constant_p,
+				bool *overflow_p, bool *non_constant_args);
 
 private:
   ConstCtx ();
