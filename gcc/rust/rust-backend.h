@@ -141,6 +141,10 @@ public:
   // Get a union type.
   virtual tree union_type (const std::vector<typed_identifier> &fields) = 0;
 
+  // Get a enum type.
+  virtual tree qual_union_type (const std::vector<typed_identifier> &fields)
+    = 0;
+
   // Get an array type.
   virtual tree array_type (tree element_type, tree length) = 0;
 

@@ -22,6 +22,8 @@
 
 #include "tree.h"
 #include "print-tree.h"
+#include "stringpool.h"
+#include "stor-layout.h"
 
 namespace Rust {
 namespace Compile {
@@ -214,20 +216,24 @@ TyTyResolveCompile::visit (const TyTy::ADTType &type)
       // I ran into some issues lets reuse our normal union and ask Ada people
       // about it.
 
-      std::vector<tree> variant_records;
+      struct variant_holder
+      {
+	tree rec;
+	tree discrim;
+	TyTy::VariantDef *variant;
+      };
+
+      tree enumeral_type
+	= TyTyResolveCompile::get_implicit_enumeral_node_type (ctx);
+      tree qual_name_tree = get_identifier (RUST_ENUM_DISR_FIELD_NAME.c_str ());
+      tree qual_field = build_decl (type.get_locus ().gcc_location (),
+				    FIELD_DECL, qual_name_tree, enumeral_type);
+
+      std::vector<variant_holder> variant_records;
       for (auto &variant : type.get_variants ())
 	{
-	  std::vector<Backend::typed_identifier> fields;
-
-	  // add in the qualifier field for the variant
-	  tree enumeral_type
-	    = TyTyResolveCompile::get_implicit_enumeral_node_type (ctx);
-	  Backend::typed_identifier f (RUST_ENUM_DISR_FIELD_NAME, enumeral_type,
-				       ctx->get_mappings ()->lookup_location (
-					 variant->get_id ()));
-	  fields.push_back (std::move (f));
-
 	  // compile the rest of the fields
+	  std::vector<Backend::typed_identifier> fields;
 	  for (size_t i = 0; i < variant->num_fields (); i++)
 	    {
 	      const TyTy::StructFieldType *field
@@ -251,22 +257,24 @@ TyTyResolveCompile::visit (const TyTy::ADTType &type)
 	    variant->get_ident ().path.get (), variant_record,
 	    variant->get_ident ().locus);
 
-	  // set the qualifier to be a builtin
-	  DECL_ARTIFICIAL (TYPE_FIELDS (variant_record)) = 1;
+	  // discrim
+	  tree discrim
+	    = CompileExpr::Compile (variant->get_discriminant (), ctx);
 
 	  // add them to the list
-	  variant_records.push_back (named_variant_record);
+	  variant_records.push_back ({named_variant_record, discrim, variant});
 	}
 
       // now we need to make the actual union, but first we need to make
       // named_type TYPE_DECL's out of the variants
 
-      size_t i = 0;
       std::vector<Backend::typed_identifier> enum_fields;
-      for (auto &variant_record : variant_records)
+      for (auto &v : variant_records)
 	{
-	  TyTy::VariantDef *variant = type.get_variants ().at (i++);
-	  std::string implicit_variant_name = variant->get_identifier ();
+	  tree variant_record = v.rec;
+	  TyTy::VariantDef *variant = v.variant;
+
+	  std::string implicit_variant_name = variant->get_name ();
 
 	  Backend::typed_identifier f (implicit_variant_name, variant_record,
 				       ctx->get_mappings ()->lookup_location (
@@ -275,7 +283,56 @@ TyTyResolveCompile::visit (const TyTy::ADTType &type)
 	}
 
       // finally make the union or the enum
-      type_record = ctx->get_backend ()->union_type (enum_fields);
+      tree qual_union = make_node (QUAL_UNION_TYPE);
+
+      size_t i = 0;
+      tree field_trees = NULL_TREE;
+      tree *pp = &field_trees;
+      for (const auto &p : enum_fields)
+	{
+	  auto &variant_holder = variant_records.at (i++);
+	  tree discrim = variant_holder.discrim;
+
+	  tree name_tree
+	    = get_identifier_with_length (p.name.c_str (), p.name.size ());
+	  tree type_tree = p.type;
+	  if (type_tree == error_mark_node)
+	    {
+	      type_record = error_mark_node;
+	      break;
+	    }
+
+	  tree field = build_decl (p.location.gcc_location (), FIELD_DECL,
+				   name_tree, type_tree);
+
+	  tree field_offset = NULL_TREE;
+	  tree place_holder = build0 (PLACEHOLDER_EXPR, sizetype);
+	  tree place_holder_expr
+	    = build3 (COMPONENT_REF, TREE_TYPE (qual_field), place_holder,
+		      qual_field, field_offset);
+
+	  DECL_QUALIFIER (field)
+	    = build2 (EQ_EXPR, boolean_type_node, place_holder_expr, discrim);
+
+	  DECL_CONTEXT (field) = qual_union;
+	  *pp = field;
+	  pp = &DECL_CHAIN (field);
+	}
+
+      TYPE_FIELDS (qual_union) = field_trees;
+      layout_type (qual_union);
+      SET_TYPE_STRUCTURAL_EQUALITY (qual_union);
+
+      // create the overall record
+      type_record = make_node (RECORD_TYPE);
+
+      DECL_CHAIN (qual_field)
+	= build_decl (type.get_locus ().gcc_location (), FIELD_DECL,
+		      get_identifier ("enum"), qual_union);
+
+      TYPE_FIELDS (type_record) = qual_field;
+      layout_type (type_record);
+      SET_TYPE_STRUCTURAL_EQUALITY (type_record);
     }
 
   std::string named_struct_str

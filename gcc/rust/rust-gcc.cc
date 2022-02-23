@@ -173,6 +173,8 @@ public:
 
   tree union_type (const std::vector<typed_identifier> &);
 
+  tree qual_union_type (const std::vector<typed_identifier> &);
+
   tree array_type (tree, tree);
 
   tree named_type (const std::string &, tree, Location);
@@ -885,6 +887,12 @@ Gcc_backend::union_type (const std::vector<typed_identifier> &fields)
   return this->fill_in_fields (make_node (UNION_TYPE), fields);
 }
 
+tree
+Gcc_backend::qual_union_type (const std::vector<typed_identifier> &fields)
+{
+  return this->fill_in_fields (make_node (QUAL_UNION_TYPE), fields);
+}
+
 // Fill in the fields of a struct or union type.
 
 tree
@@ -1272,7 +1280,8 @@ Gcc_backend::struct_field_expression (tree struct_tree, size_t index,
       || TREE_TYPE (struct_tree) == error_mark_node)
     return error_mark_node;
   gcc_assert (TREE_CODE (TREE_TYPE (struct_tree)) == RECORD_TYPE
-	      || TREE_CODE (TREE_TYPE (struct_tree)) == UNION_TYPE);
+	      || TREE_CODE (TREE_TYPE (struct_tree)) == UNION_TYPE
+	      || TREE_CODE (TREE_TYPE (struct_tree)) == QUAL_UNION_TYPE);
   tree field = TYPE_FIELDS (TREE_TYPE (struct_tree));
   if (field == NULL_TREE)
     {
@@ -1565,7 +1574,8 @@ Gcc_backend::constructor_expression (tree type_tree, bool is_variant,
   if (is_variant)
     {
       gcc_assert (union_index != -1);
-      gcc_assert (TREE_CODE (type_tree) == UNION_TYPE);
+      gcc_assert (TREE_CODE (type_tree) == UNION_TYPE
+		  || TREE_CODE (type_tree) == QUAL_UNION_TYPE);
 
       for (int i = 0; i < union_index; i++)
 	{

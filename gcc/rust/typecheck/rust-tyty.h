@@ -1090,7 +1090,7 @@ public:
   bool is_data_variant () const { return type != VariantType::NUM; }
   bool is_dataless_variant () const { return type == VariantType::NUM; }
 
-  std::string get_identifier () const { return identifier; }
+  std::string get_name () const { return identifier; }
 
   size_t num_fields () const { return fields.size (); }
   StructFieldType *get_field_at_index (size_t index)
@@ -1303,7 +1303,7 @@ public:
   {
     for (auto &variant : variants)
       {
-	if (variant->get_identifier ().compare (lookup) == 0)
+	if (variant->get_name ().compare (lookup) == 0)
 	  {
 	    *found_variant = variant;
 	    return true;
