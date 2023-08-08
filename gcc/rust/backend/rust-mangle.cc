@@ -4,8 +4,10 @@
 #include "rust-base62.h"
 #include "rust-unicode.h"
 #include "rust-diagnostics.h"
+#include "rust-system.h"
 #include "rust-unicode.h"
 #include "rust-punycode.h"
+#include "rust-hir.h"
 
 // FIXME: Rename those to legacy_*
 static const std::string kMangledSymbolPrefix = "_ZN";
@@ -26,7 +28,7 @@ static const std::string kMangledComma = "$C$";
 namespace Rust {
 namespace Compile {
 
-Mangler::MangleVersion Mangler::version = MangleVersion::LEGACY;
+Mangler::MangleVersion Mangler::version = MangleVersion::V0;
 
 static std::string
 legacy_mangle_name (const std::string &name)
@@ -170,6 +172,7 @@ v0_numeric_prefix (const TyTy::BaseType *ty)
   if (numeric_iter != num_prefixes.end ())
     return numeric_iter->second;
 
+  rust_unreachable ();
   return "";
 }
 
@@ -212,46 +215,49 @@ v0_simple_type_prefix (const TyTy::BaseType *ty)
   rust_unreachable ();
 }
 
-// Add an underscore-terminated base62 integer to the mangling string.
+// Returns an underscore-terminated base62 integer.
 // This corresponds to the `<base-62-number>` grammar in the v0 mangling RFC:
 //  - 0 is encoded as "_"
 //  - any other value is encoded as itself minus one in base 62, followed by
 //  "_"
-static void
-v0_add_integer_62 (std::string &mangled, uint64_t x)
+static std::string
+v0_integer_62 (uint64_t x)
 {
+  std::stringstream s;
   if (x > 0)
-    mangled.append (base62_integer (x - 1));
+    s << base62_integer (x - 1);
 
-  mangled.append ("_");
+  s << "_";
+  return s.str ();
 }
 
-// Add a tag-prefixed base62 integer to the mangling string when the
+//  Returns a tag-prefixed base62 integer when the
 // integer is greater than 0:
 //  - 0 is encoded as "" (nothing)
-//  - any other value is encoded as <tag> + v0_add_integer_62(itself), that is
+//  - any other value is encoded as <tag> + v0_integer_62(itself), that is
 //  <tag> + base62(itself - 1) + '_'
-static void
-v0_add_opt_integer_62 (std::string &mangled, std::string tag, uint64_t x)
+static std::string
+v0_opt_integer_62 (std::string tag, uint64_t x)
 {
   if (x > 0)
     {
-      mangled.append (tag);
-      v0_add_integer_62 (mangled, x);
+      return tag + v0_integer_62 (x);
     }
+  return "";
 }
 
-static void
-v0_add_disambiguator (std::string &mangled, uint64_t dis)
+static std::string
+v0_disambiguator (uint64_t dis)
 {
-  v0_add_opt_integer_62 (mangled, "s", dis);
+  return v0_opt_integer_62 ("s", dis);
 }
 
-// Add an identifier to the mangled string. This corresponds to the
+// Returns an mangled identifier. This corresponds to the
 // `<identifier>` grammar in the v0 mangling RFC.
-static void
-v0_add_identifier (std::string &mangled, const std::string &identifier)
+static std::string
+v0_identifier (const std::string &identifier)
 {
+  std::stringstream mangled;
   // The grammar for unicode identifier is contained in
   // <undisambiguated-identifier>, right under the <identifier> one. If the
   // identifier contains unicode values, then an extra "u" needs to be added to
@@ -279,15 +285,53 @@ v0_add_identifier (std::string &mangled, const std::string &identifier)
   std::replace (punycode.begin (), punycode.end (), '-', '_');
 
   if (!is_ascii_ident)
-    mangled.append ("u");
+    mangled << "u";
 
-  mangled += std::to_string (punycode.size ());
+  mangled << std::to_string (punycode.size ());
   // If the first character of the identifier is a digit or an underscore, we
   // add an extra underscore
   if (punycode[0] == '_')
-    mangled += "_";
+    mangled << "_";
+  mangled << punycode;
+  return mangled.str ();
+}
 
-  mangled += punycode;
+static std::string
+v0_path (const Resolver::CanonicalPath &path)
+{
+  std::cout << "mangle path " << path.get () << std::endl;
+  auto mappings = Analysis::Mappings::get ();
+
+  std::string prefixes;
+  std::string segments;
+
+  path.iterate_segs ([&] (const Resolver::CanonicalPath &path) {
+    std::cout << "lookup path seg " << path.get () << std::endl;
+    HirId hir_id;
+    if (!mappings->lookup_node_to_hir (path.get_node_id (), &hir_id))
+      rust_unreachable ();
+    HIR::Item *item = mappings->lookup_hir_item (hir_id);
+    if (item == nullptr)
+      prefixes.insert (0, "C");
+    else
+      switch (item->get_item_kind ())
+	{
+	case HIR::Item::ItemKind::Module:
+	case HIR::Item::ItemKind::Function:
+	  prefixes.insert (0, "Nv");
+	  break;
+	default:
+	  // TODO: implement other kinds
+	  rust_unreachable ();
+	}
+    segments += v0_identifier (path.get ());
+    return true;
+  });
+  std::string crate_disambiguator = v0_disambiguator (path.get_crate_num ());
+  std::cout << "prefixes " << prefixes << std::endl;
+  std::cout << "segments " << segments << std::endl;
+  std::cout << "crate_disambiguator " << crate_disambiguator << std::endl;
+  return prefixes + crate_disambiguator + segments;
 }
 
 static std::string
@@ -321,13 +365,18 @@ v0_mangle_item (const TyTy::BaseType *ty, const Resolver::CanonicalPath &path)
   bool ok = mappings->get_crate_name (path.get_crate_num (), crate_name);
   rust_assert (ok);
 
-  std::string mangled;
+  std::stringstream mangled;
   // FIXME: Add real algorithm once all pieces are implemented
-  v0_add_identifier (mangled, crate_name);
-  v0_add_disambiguator (mangled, 62);
-  auto ty_prefix = v0_type_prefix (ty);
+  mangled << "_R";
+  mangled << v0_path (path);
+  // auto ty_prefix = v0_type_prefix (ty);
 
-  rust_unreachable ();
+  std::cout << "mangled: " << path.get () << " to " << mangled.str ()
+	    << std::endl;
+
+  //std::cout << "fancy abort" << std::endl;
+  //rust_unreachable ();
+  return mangled.str ();
 }
 
 std::string
@@ -347,3 +396,21 @@ Mangler::mangle_item (const TyTy::BaseType *ty,
 
 } // namespace Compile
 } // namespace Rust
+
+#if CHECKING_P
+namespace selftest {
+
+void
+assert_v0_mangle (const std::string &input, const std::string &expected)
+{
+  // TODO:
+}
+
+void
+rust_v0_mangling_test (void)
+{
+  // TODO:
+}
+
+} // namespace selftest
+#endif // !CHECKING_P

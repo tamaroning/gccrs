@@ -49,4 +49,13 @@ private:
 } // namespace Compile
 } // namespace Rust
 
+#if CHECKING_P
+namespace selftest {
+
+void
+rust_v0_mangling_test ();
+
+} // namespace selftest
+#endif // !CHECKING_P
+
 #endif // RUST_MANGLE_H
